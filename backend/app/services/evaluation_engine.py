@@ -1,6 +1,6 @@
 import numpy as np
 from PIL import Image
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from backend.app.services.dataset_service import get_session_images, SESSION_CACHE
 from backend.app.utils.metrics_utils import (
     extract_features_from_pil,

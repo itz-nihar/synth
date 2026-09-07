@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synthetic Image Generation & Evaluation Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-icon">✨</div>
+                <div>
+                    <h1>Synthetic Image Evaluation Hub</h1>
+                    <p class="subtitle">Multi-Model Pipeline • GAN • Diffusion • VAE-GAN • Quality/Utility/Privacy Evaluation</p>
+                </div>
+            </div>
+            <div class="session-badge">
+                <span>Session ID:</span> <strong id="session-id-display">Not Created</strong>
+            </div>
+        </header>
+
+        <!-- Pipeline Navigation Stepper -->
+        <nav class="pipeline-stepper">
+            <button class="step-btn active" data-step="1">
+                <span class="step-num">1</span>
+                <span class="step-title">Dataset Upload</span>
+            </button>
+            <div class="step-line"></div>
+            <button class="step-btn" data-step="2">
+                <span class="step-num">2</span>
+                <span class="step-title">Preprocess & Validate</span>
+            </button>
+            <div class="step-line"></div>
+            <button class="step-btn" data-step="3">
+                <span class="step-num">3</span>
+                <span class="step-title">Model Generation</span>
+            </button>
+            <div class="step-line"></div>
+            <button class="step-btn" data-step="4">
+                <span class="step-num">4</span>
+                <span class="step-title">Evaluation Engine</span>
+            </button>
+            <div class="step-line"></div>
+            <button class="step-btn" data-step="5">
+                <span class="step-num">5</span>
+                <span class="step-title">Comparison & Recommendation</span>
+            </button>
+        </nav>
+
+        <!-- Main Workspace -->
+        <main class="workspace">
+
+            <!-- STEP 1: UPLOAD DATASET -->
+            <section id="step-1" class="step-content active">
+                <div class="card glass">
+                    <h2>Step 1: Upload Real Image Dataset</h2>
+                    <p class="desc">Upload a `.zip` archive containing your real training images (JPEG, PNG, WEBP) or generate a quick test sample dataset.</p>
+
+                    <div class="drop-zone" id="drop-zone">
+                        <div class="drop-icon">📁</div>
+                        <p class="drop-text">Drag & drop your <strong>Dataset .ZIP file</strong> here or click to browse</p>
+                        <input type="file" id="file-input" accept=".zip,.png,.jpg,.jpeg" style="display: none;">
+                        <button class="btn btn-primary" id="btn-browse">Select Zip File</button>
+                    </div>
+
+                    <div class="quick-sample-row">
+                        <span>Need a quick test dataset?</span>
+                        <button class="btn btn-secondary btn-sm" id="btn-demo-data">⚡ Generate Demo Real Dataset (20 Images)</button>
+                    </div>
+
+                    <div id="upload-status" class="status-msg hidden"></div>
+
+                    <div id="upload-manifest" class="manifest-card hidden">
+                        <h3>Dataset Upload Summary</h3>
+                        <div class="stats-grid">
+                            <div class="stat-box">
+                                <span class="stat-val" id="stat-total-imgs">0</span>
+                                <span class="stat-lbl">Total Uploaded Images</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-val" id="stat-file-format">ZIP</span>
+                                <span class="stat-lbl">Archive Format</span>
+                            </div>
+                        </div>
+
+                        <h4>Raw Image Previews</h4>
+                        <div class="image-grid" id="raw-preview-grid"></div>
+
+                        <div class="actions-right">
+                            <button class="btn btn-success" id="btn-goto-step2">Proceed to Preprocessing &rarr;</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STEP 2: PREPROCESSING & VALIDATION -->
+            <section id="step-2" class="step-content">
+                <div class="card glass">
+                    <h2>Step 2: Dataset Preprocessing & Validation</h2>
+                    <p class="desc">Filter corrupt files, unify RGB color channels, standardize image dimensions, and split into train/test sets.</p>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="select-size">Target Image Resolution:</label>
+                            <select id="select-size" class="input-select">
+                                <option value="128" selected>128 x 128 px (High Res - Sharp Medical Detail)</option>
+                                <option value="64">64 x 64 px (Fast Training)</option>
+                                <option value="32">32 x 32 px (Ultra Fast)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="select-split">Train / Test Split Ratio:</label>
+                            <select id="select-split" class="input-select">
+                                <option value="0.8" selected>80% Train / 20% Test</option>
+                                <option value="0.7">70% Train / 30% Test</option>
+                            </select>
+                        </div>
+                        <div class="form-group flex-end">
+                            <button class="btn btn-primary" id="btn-run-preprocess">Run Preprocessing & Standardize</button>
+                        </div>
+                    </div>
+
+                    <div id="preprocess-results" class="manifest-card hidden">
+                        <h3>Preprocessing & Validation Summary</h3>
+                        <div class="stats-grid">
+                            <div class="stat-box">
+                                <span class="stat-val" id="prep-processed-count">0</span>
+                                <span class="stat-lbl">Preprocessed Samples</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-val" id="prep-train-count">0</span>
+                                <span class="stat-lbl">Train Split</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-val" id="prep-test-count">0</span>
+                                <span class="stat-lbl">Test Split</span>
+                            </div>
+                        </div>
+
+                        <h4>Preprocessed Sample Grid</h4>
+                        <div class="image-grid" id="prep-preview-grid"></div>
+
+                        <div class="actions-right">
+                            <button class="btn btn-success" id="btn-goto-step3">Proceed to Model Generation &rarr;</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STEP 3: MODEL GENERATION -->
+            <section id="step-3" class="step-content">
+                <div class="card glass">
+                    <h2>Step 3: Synthetic Data Generation Models</h2>
+                    <p class="desc">Train and sample synthetic images across 3 distinct deep generative architectures.</p>
+
+                    <div class="models-grid">
+                        <!-- Model 1: GAN -->
+                        <div class="model-card glass-inner">
+                            <div class="model-badge">Model 1</div>
+                            <h3>GAN (DCGAN / WGAN)</h3>
+                            <p>Deep Convolutional Adversarial Network using min-max adversarial loss.</p>
+                            <div class="model-controls">
+                                <label>Epochs: <input type="number" id="epochs-gan" value="10" min="1" max="100" class="input-num"></label>
+                                <label>Samples: <input type="number" id="samples-gan" value="16" min="4" max="100" class="input-num"></label>
+                            </div>
+                            <button class="btn btn-outline btn-block" id="btn-train-gan">Start GAN Pipeline</button>
+                            <div class="progress-bar-container hidden" id="prog-wrap-gan">
+                                <div class="progress-bar" id="prog-bar-gan"></div>
+                                <span class="progress-text" id="prog-text-gan">0%</span>
+                            </div>
+                            <div class="gen-preview-area hidden" id="gen-area-gan">
+                                <h4>GAN Synthetic Samples</h4>
+                                <div class="image-grid mini" id="gen-grid-gan"></div>
+                            </div>
+                        </div>
+
+                        <!-- Model 2: Diffusion -->
+                        <div class="model-card glass-inner">
+                            <div class="model-badge">Model 2</div>
+                            <h3>Diffusion (DDPM)</h3>
+                            <p>Denoising Diffusion Probabilistic Model with Residual U-Net noise predictor.</p>
+                            <div class="model-controls">
+                                <label>Epochs: <input type="number" id="epochs-diffusion" value="10" min="1" max="100" class="input-num"></label>
+                                <label>Samples: <input type="number" id="samples-diffusion" value="16" min="4" max="100" class="input-num"></label>
+                            </div>
+                            <button class="btn btn-outline btn-block" id="btn-train-diffusion">Start Diffusion Pipeline</button>
+                            <div class="progress-bar-container hidden" id="prog-wrap-diffusion">
+                                <div class="progress-bar" id="prog-bar-diffusion"></div>
+                                <span class="progress-text" id="prog-text-diffusion">0%</span>
+                            </div>
+                            <div class="gen-preview-area hidden" id="gen-area-diffusion">
+                                <h4>Diffusion Synthetic Samples</h4>
+                                <div class="image-grid mini" id="gen-grid-diffusion"></div>
+                            </div>
+                        </div>
+
+                        <!-- Model 3: VAE/GAN -->
+                        <div class="model-card glass-inner">
+                            <div class="model-badge">Model 3</div>
+                            <h3>VAE / GAN Hybrid</h3>
+                            <p>Variational Autoencoder with Discriminator feature-matching reconstruction loss.</p>
+                            <div class="model-controls">
+                                <label>Epochs: <input type="number" id="epochs-vae_gan" value="10" min="1" max="100" class="input-num"></label>
+                                <label>Samples: <input type="number" id="samples-vae_gan" value="16" min="4" max="100" class="input-num"></label>
+                            </div>
+                            <button class="btn btn-outline btn-block" id="btn-train-vae_gan">Start VAE/GAN Pipeline</button>
+                            <div class="progress-bar-container hidden" id="prog-wrap-vae_gan">
+                                <div class="progress-bar" id="prog-bar-vae_gan"></div>
+                                <span class="progress-text" id="prog-text-vae_gan">0%</span>
+                            </div>
+                            <div class="gen-preview-area hidden" id="gen-area-vae_gan">
+                                <h4>VAE/GAN Synthetic Samples</h4>
+                                <div class="image-grid mini" id="gen-grid-vae_gan"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="actions-right margin-top">
+                        <button class="btn btn-success" id="btn-goto-step4">Proceed to Evaluation Engine &rarr;</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STEP 4: EVALUATION ENGINE -->
+            <section id="step-4" class="step-content">
+                <div class="card glass">
+                    <h2>Step 4: Automated Evaluation Engine</h2>
+                    <p class="desc">Computes multi-dimensional metric suites evaluating Image Quality (FID/SSIM), Utility Score (TSTR), and Privacy Protection (NNDR).</p>
+
+                    <div class="form-row">
+                        <button class="btn btn-primary" id="btn-run-all-eval">Run Multi-Metric Evaluation Across All Models</button>
+                    </div>
+
+                    <div id="eval-dashboard" class="eval-grid hidden">
+                        <!-- Model cards populated by JavaScript -->
+                    </div>
+
+                    <div class="actions-right margin-top">
+                        <button class="btn btn-success" id="btn-goto-step5">Proceed to Model Comparison & Recommendation &rarr;</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STEP 5: COMPARISON & RECOMMENDATION -->
+            <section id="step-5" class="step-content">
+                <div class="card glass">
+                    <h2>Step 5: Model Comparison & Recommended Winner</h2>
+                    <p class="desc">Multi-criteria decision engine aggregates Quality (40%), Utility (40%), and Privacy (20%) scores to declare the winner.</p>
+
+                    <div class="form-row">
+                        <button class="btn btn-primary" id="btn-trigger-comparison">Calculate Model Rankings & Recommendation</button>
+                    </div>
+
+                    <div id="comparison-results-card" class="comparison-card hidden">
+                        <!-- Winner Hero Banner -->
+                        <div class="winner-banner">
+                            <div class="trophy-icon">🏆</div>
+                            <div>
+                                <span class="winner-label">RECOMMENDED MODEL</span>
+                                <h2 id="winner-name">Model Name</h2>
+                                <p id="winner-rationale" class="winner-desc"></p>
+                            </div>
+                        </div>
+
+                        <!-- Comparison Ranking Table -->
+                        <h3>Comparative Model Benchmark Table</h3>
+                        <div class="table-wrapper">
+                            <table class="benchmark-table">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Generative Model</th>
+                                        <th>Composite Score</th>
+                                        <th>Image Quality</th>
+                                        <th>FID Score</th>
+                                        <th>Utility (TSTR)</th>
+                                        <th>Privacy (NNDR)</th>
+                                        <th>Synthetic Preview</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="benchmark-table-body">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Side by Side Real vs Synthetic -->
+                        <h3>Side-by-Side Verification (Real vs Synthetic)</h3>
+                        <div class="side-by-side-box">
+                            <div class="side-col">
+                                <h4>Real Training Images</h4>
+                                <div class="image-grid mini" id="side-real-grid"></div>
+                            </div>
+                            <div class="side-divider">VS</div>
+                            <div class="side-col">
+                                <h4>Recommended Synthetic Images</h4>
+                                <div class="image-grid mini" id="side-syn-grid"></div>
+                            </div>
+                        </div>
+
+                        <!-- Export Action -->
+                        <div class="export-box">
+                            <div>
+                                <h3>Export Recommended Synthetic Dataset</h3>
+                                <p>Download ZIP package containing high-quality synthetic images, PyTorch model weights, and JSON evaluation report.</p>
+                            </div>
+                            <button class="btn btn-success btn-lg" id="btn-download-zip">📦 Download Synthetic Dataset (.ZIP)</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

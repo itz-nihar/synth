@@ -1,0 +1,245 @@
+# Synthetic Image Generation & Evaluation Pipeline - Implementation Plan
+
+Building an end-to-end Python FastAPI backend and minimal interactive testing frontend for synthetic image generation, multi-model execution, and automated evaluation across Image Quality/Similarity, Utility, and Privacy.
+
+```
+                    REAL IMAGE DATASET
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │ Dataset Upload  │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │ Preprocessing   │
+                  │ & Validation    │
+                  └────────┬────────┘
+                           │
+             ┌─────────────┼─────────────┐
+             ▼             ▼             ▼
+        Model 1        Model 2        Model 3
+        GAN            Diffusion      VAE/GAN
+             │             │             │
+             ▼             ▼             ▼
+       Synthetic       Synthetic      Synthetic
+        Dataset         Dataset        Dataset
+             │             │             │
+             └─────────────┼─────────────┘
+                           ▼
+                 ┌───────────────────┐
+                 │ Evaluation Engine │
+                 └─────────┬─────────┘
+                           │
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+          Image Quality  Utility      Privacy
+          /Similarity   Score        Score
+              │            │            │
+              └────────────┼────────────┘
+                           ▼
+                 ┌───────────────────┐
+                 │ Model Comparison  │
+                 └─────────┬─────────┘
+                           │
+                 RECOMMENDED MODEL
+                           +
+                 SYNTHETIC DATASET
+```
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> - **PyTorch & Hardware Compatibility**: Running fully unconstrained deep generative models (GAN, Diffusion, VAE-GAN) on CPU can be compute-intensive. To guarantee **fast execution and responsive testing**, models will feature scalable configurations (e.g. light fast-mode epochs for quick interactive testing, and full training mode).
+> - **Tabular Integration Readiness**: The backend REST APIs will return clean, standardized JSON schemas so that your existing Tabular Synthetic Data project frontend can seamlessly integrate with these endpoints in the future.
+
+---
+
+## Open Questions
+
+> [!NOTE]
+> None at this stage. All requirements align directly with the user's target architecture and request.
+
+---
+
+## Proposed System Architecture & File Structure
+
+```
+d:/Major project image integration/
+├── backend/
+│   ├── app/
+│   │   ├── main.py                     # FastAPI application entry point & CORS
+│   │   ├── config.py                   # Configuration, path resolutions, defaults
+│   │   ├── api/                        # REST API Routers
+│   │   │   ├── __init__.py
+│   │   │   ├── upload.py               # Dataset upload & zip extraction
+│   │   │   ├── preprocess.py           # Validation, resize, normalizations
+│   │   │   ├── models.py               # Train & generate endpoints for GAN, Diffusion, VAE-GAN
+│   │   │   ├── evaluate.py             # Evaluation metrics runner
+│   │   │   └── comparison.py           # Model ranking & synthetic dataset export
+│   │   ├── models/                     # PyTorch Generative Model Architectures
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py                 # Abstract base model interface
+│   │   │   ├── gan.py                  # DCGAN / WGAN architecture
+│   │   │   ├── diffusion.py            # DDPM (Denoising Diffusion Probabilistic Model)
+│   │   │   └── vae_gan.py              # VAE-GAN Hybrid architecture
+│   │   ├── services/                   # Business Logic & Engine
+│   │   │   ├── dataset_service.py      # Zip parsing, metadata extraction, preview generation
+│   │   │   ├── preprocess_service.py   # Resizing, channel check, transform pipeline
+│   │   │   ├── train_service.py        # Asynchronous model trainer & progress tracking
+│   │   │   ├── evaluation_engine.py    # FID, SSIM, PSNR, TSTR Utility, NNDR Privacy compute
+│   │   │   └── comparison_engine.py    # Multi-criteria scoring, ranking & recommendations
+│   │   └── utils/
+│   │       ├── metrics_utils.py        # Feature extractors (ResNet/Inception), distance metrics
+│   │       └── file_utils.py           # File handling, zip packing, security checks
+│   └── storage/                        # Workspace runtime storage
+│       ├── uploads/                    # Uploaded raw real datasets
+│       ├── processed/                  # Standardized preprocessed real datasets
+│       ├── generated/                  # Generated synthetic datasets (GAN, Diffusion, VAE-GAN)
+│       └── checkpoints/                # Model weights & evaluation artifacts
+├── frontend/                           # Minimal Testing Frontend UI
+│   ├── index.html                      # Interactive pipeline visual interface
+│   ├── css/
+│   │   └── styles.css                  # Modern glassmorphism UI styles
+│   └── js/
+│       └── app.js                      # API client integration & state management
+├── run_server.py                       # Uvicorn launcher script
+└── requirements.txt                    # Project dependencies
+```
+
+---
+
+## Detailed Pipeline Component Specifications
+
+### 1. Dataset Upload & Management
+- Accept dataset uploads via multipart `.zip` archive or multi-file upload.
+- Extract files, validate image integrity (JPEG, PNG, WEBP), extract stats (resolution, color space, sample count).
+- Generate image thumbnail grids for visual inspection.
+
+### 2. Preprocessing & Validation
+- **Validation**: Identify and isolate corrupt, unreadable, or out-of-bounds files.
+- **Preprocessing Pipeline**:
+  - Resizing to standard dimensions ($64 \times 64$, $128 \times 128$, $256 \times 256$).
+  - Channel unification (RGB 3-channels).
+  - Tensor Normalization ($[-1, 1]$ or $[0, 1]$).
+  - Train/Validation dataset splitting.
+
+### 3. Generative Models Suite (3 Distinct Architectures)
+1. **GAN (DCGAN / WGAN-GP)**:
+   - Deep Convolutional Generator with Transposed Convolutions and BatchNorm.
+   - Spectral Normalization / Discriminator for stable min-max training.
+2. **Diffusion (DDPM)**:
+   - Denoising Diffusion Probabilistic Model with sinusoidal time embeddings and residual U-Net predictor.
+   - Forward noise schedule + reverse iterative denoising sampler.
+3. **VAE/GAN Hybrid**:
+   - Encoder network estimating latent mean $\mu$ and variance $\sigma^2$.
+   - Decoder/Generator producing synthetic images from latent space.
+   - Discriminator evaluating feature-matching loss to enhance visual sharpness.
+- **Training & Generation Control**:
+  - Asynchronous background task runner with live progress tracking (epochs, loss metrics, elapsed time).
+  - Sample generator creating $N$ synthetic images per model.
+
+### 4. Evaluation Engine (3 Evaluation Pillars)
+- **Image Quality & Similarity**:
+  - **FID (Fréchet Inception Distance)**: Calculates multivariate Gaussian distance between real and synthetic feature distributions using CNN feature extractors.
+  - **SSIM & PSNR**: Structural similarity and signal-to-noise ratio across sample pairs.
+  - **Color Histogram Similarity**: RGB channel distribution comparison via Wasserstein distance.
+- **Utility Score**:
+  - **TSTR (Train on Synthetic, Test on Real)**: Trains a downstream classifier on synthetic data, evaluates top-1 accuracy / F1 score on real test data, and computes Utility Ratio against TRTR (Train on Real, Test on Real).
+  - **Diversity Index**: Feature space variance to detect mode collapse.
+- **Privacy Score**:
+  - **NNDR (Nearest Neighbor Distance Ratio)**: Measures minimum feature distance from synthetic samples to real training set to ensure non-memorization.
+  - **Copying / Leakage Rate**: Percentage of synthetic images excessively close to real images.
+  - **Overall Privacy Metric**: High score indicates synthetic images do not leak original private samples.
+
+### 5. Model Comparison & Recommendation Engine
+- Aggregates Quality, Utility, and Privacy scores into a weighted multi-criteria decision matrix:
+  $$\text{Composite Score} = w_q \cdot \text{Quality} + w_u \cdot \text{Utility} + w_p \cdot \text{Privacy}$$
+- Rank models (1st, 2nd, 3rd) and dynamically highlight the **RECOMMENDED MODEL**.
+- Provide one-click ZIP download of the recommended synthetic dataset + PDF/JSON evaluation summary report.
+
+### 6. Minimal Frontend Testing UI
+- Single-Page Dashboard with 5 interactive step tabs:
+  1. **Upload Dataset**: Upload zip, dataset preview gallery, sample metadata.
+  2. **Preprocess & Standardize**: Select target resolution, view preprocessed images.
+  3. **Generate Synthetic Data**: Trigger training & generation for GAN, Diffusion, VAE-GAN with progress bars.
+  4. **Evaluation Engine**: Interactive radar chart & metric cards for Quality, Utility, and Privacy.
+  5. **Comparison & Recommendation**: Winner badge for Recommended Model, real vs synthetic side-by-side viewer, download zip button.
+
+---
+
+## Proposed Code Changes
+
+#### [NEW] [backend/app/main.py](file:///d:/Major%20project%20image%20integration/backend/app/main.py)
+FastAPI application setup, CORS middleware, mounting static files for frontend, and inclusion of API routers.
+
+#### [NEW] [backend/app/config.py](file:///d:/Major%20project%20image%20integration/backend/app/config.py)
+Global configuration constants, storage directories setup, default hyperparameters.
+
+#### [NEW] [backend/app/api/upload.py](file:///d:/Major%20project%20image%20integration/backend/app/api/upload.py)
+Endpoints for dataset upload, extraction, and sample manifest retrieval.
+
+#### [NEW] [backend/app/api/preprocess.py](file:///d:/Major%20project%20image%20integration/backend/app/api/preprocess.py)
+Endpoints to trigger preprocessing (resizing, normalization) and view validation reports.
+
+#### [NEW] [backend/app/api/models.py](file:///d:/Major%20project%20image%20integration/backend/app/api/models.py)
+Endpoints to start model training, query generation progress, and trigger synthetic image generation.
+
+#### [NEW] [backend/app/api/evaluate.py](file:///d:/Major%20project%20image%20integration/backend/app/api/evaluate.py)
+Endpoints to compute Image Quality, Utility (TSTR), and Privacy (NNDR) metrics.
+
+#### [NEW] [backend/app/api/comparison.py](file:///d:/Major%20project%20image%20integration/backend/app/api/comparison.py)
+Endpoints for multi-model comparison, ranking calculation, recommendation, and dataset download.
+
+#### [NEW] [backend/app/models/gan.py](file:///d:/Major%20project%20image%20integration/backend/app/models/gan.py)
+PyTorch Generator and Discriminator implementation for DCGAN/WGAN.
+
+#### [NEW] [backend/app/models/diffusion.py](file:///d:/Major%20project%20image%20integration/backend/app/models/diffusion.py)
+PyTorch Denoising Diffusion Probabilistic Model (DDPM) implementation with time-embedding U-Net.
+
+#### [NEW] [backend/app/models/vae_gan.py](file:///d:/Major%20project%20image%20integration/backend/app/models/vae_gan.py)
+PyTorch VAE-GAN hybrid network implementation (Encoder, Decoder, Discriminator).
+
+#### [NEW] [backend/app/services/evaluation_engine.py](file:///d:/Major%20project%20image%20integration/backend/app/services/evaluation_engine.py)
+Core mathematical implementations for FID, SSIM, PSNR, TSTR utility, and NNDR privacy scores.
+
+#### [NEW] [backend/app/services/comparison_engine.py](file:///d:/Major%20project%20image%20integration/backend/app/services/comparison_engine.py)
+Multi-criteria evaluation matrix, model ranking, recommendation logic, and report packaging.
+
+#### [NEW] [frontend/index.html](file:///d:/Major%20project%20image%20integration/frontend/index.html)
+Interactive HTML5 testing user interface.
+
+#### [NEW] [frontend/css/styles.css](file:///d:/Major%20project%20image%20integration/frontend/css/styles.css)
+Modern glassmorphism styling, responsive layout, animations, cards, and data badges.
+
+#### [NEW] [frontend/js/app.js](file:///d:/Major%20project%20image%20integration/frontend/js/app.js)
+Frontend JavaScript managing API interactions, upload dropzones, live training status, and comparison charts.
+
+#### [NEW] [run_server.py](file:///d:/Major%20project%20image%20integration/run_server.py)
+Convenience script to start backend server and serve the frontend on `http://localhost:8000`.
+
+---
+
+## Verification Plan
+
+### Automated Verification
+1. **Backend Endpoint Integration Tests**:
+   - Test dataset upload with zip files via pytest / httpx client.
+   - Test preprocessing execution & output file verification.
+   - Run short single-epoch training for GAN, Diffusion, VAE-GAN to verify PyTorch model initialization, forward pass, and generation.
+   - Run Evaluation Engine on real vs synthetic images, verifying FID, SSIM, TSTR, and NNDR calculations.
+   - Verify Model Comparison API returns ranking and recommendation payload.
+
+2. **Server Execution**:
+   - Launch `python run_server.py` and query health check `http://localhost:8000/api/health`.
+
+### Manual & UI Verification
+- Access `http://localhost:8000` in browser.
+- Perform complete end-to-end test flow:
+  1. Upload sample dataset zip.
+  2. Preprocess dataset (64x64 / 128x128).
+  3. Generate synthetic images using GAN, Diffusion, and VAE-GAN.
+  4. Run Evaluation Engine and review Quality, Utility, and Privacy metric cards.
+  5. Inspect Recommended Model output and test synthetic dataset zip download.

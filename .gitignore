@@ -1,0 +1,16 @@
+.env
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+datasets/
+data/
+generated_datasets/
+outputs/
+checkpoints/
+
+*.pt
+*.pth
+*.ckpt
+storage/

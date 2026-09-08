@@ -32,6 +32,9 @@ def prepare_pytorch_dataloader(session_id: str, image_size: int = 64, batch_size
         
     transform = transforms.Compose([
         transforms.Resize((image_size, image_size)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(degrees=7),
+        transforms.RandomAffine(degrees=0, translate=(0.03, 0.03), scale=(0.97, 1.03)),
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # Map [0,1] -> [-1,1]
     ])
@@ -44,7 +47,7 @@ def prepare_pytorch_dataloader(session_id: str, image_size: int = 64, batch_size
 def train_and_generate_task(
     session_id: str,
     model_type: str, # "gan", "diffusion", "vae_gan"
-    epochs: int = 5,
+    epochs: int = 100,
     num_synthetic_samples: int = 20,
     image_size: int = 64
 ):
@@ -131,7 +134,7 @@ def train_and_generate_task(
 def start_training_job(
     session_id: str,
     model_type: str,
-    epochs: int = 5,
+    epochs: int = 100,
     num_synthetic_samples: int = 20,
     image_size: int = 64
 ) -> Dict[str, Any]:

@@ -1,14 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Synthetic Image Generation & Evaluation Platform</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
 </head>
+
 <body>
     <div class="app-container">
         <!-- Header -->
@@ -17,7 +21,8 @@
                 <div class="logo-icon">✨</div>
                 <div>
                     <h1>Synthetic Image Evaluation Hub</h1>
-                    <p class="subtitle">Multi-Model Pipeline • GAN • Diffusion • VAE-GAN • Quality/Utility/Privacy Evaluation</p>
+                    <p class="subtitle">Multi-Model Pipeline • GAN • Diffusion • VAE-GAN • Quality/Utility/Privacy
+                        Evaluation</p>
                 </div>
             </div>
             <div class="session-badge">
@@ -60,18 +65,21 @@
             <section id="step-1" class="step-content active">
                 <div class="card glass">
                     <h2>Step 1: Upload Real Image Dataset</h2>
-                    <p class="desc">Upload a `.zip` archive containing your real training images (JPEG, PNG, WEBP) or generate a quick test sample dataset.</p>
+                    <p class="desc">Upload a `.zip` archive containing your real training images (JPEG, PNG, WEBP) or
+                        generate a quick test sample dataset.</p>
 
                     <div class="drop-zone" id="drop-zone">
                         <div class="drop-icon">📁</div>
-                        <p class="drop-text">Drag & drop your <strong>Dataset .ZIP file</strong> here or click to browse</p>
+                        <p class="drop-text">Drag & drop your <strong>Dataset .ZIP file</strong> here or click to browse
+                        </p>
                         <input type="file" id="file-input" accept=".zip,.png,.jpg,.jpeg" style="display: none;">
                         <button class="btn btn-primary" id="btn-browse">Select Zip File</button>
                     </div>
 
                     <div class="quick-sample-row">
                         <span>Need a quick test dataset?</span>
-                        <button class="btn btn-secondary btn-sm" id="btn-demo-data">⚡ Generate Demo Real Dataset (20 Images)</button>
+                        <button class="btn btn-secondary btn-sm" id="btn-demo-data">⚡ Generate Demo Real Dataset (20
+                            Images)</button>
                     </div>
 
                     <div id="upload-status" class="status-msg hidden"></div>
@@ -103,7 +111,8 @@
             <section id="step-2" class="step-content">
                 <div class="card glass">
                     <h2>Step 2: Dataset Preprocessing & Validation</h2>
-                    <p class="desc">Filter corrupt files, unify RGB color channels, standardize image dimensions, and split into train/test sets.</p>
+                    <p class="desc">Filter corrupt files, unify RGB color channels, standardize image dimensions, and
+                        split into train/test sets.</p>
 
                     <div class="form-row">
                         <div class="form-group">
@@ -122,7 +131,8 @@
                             </select>
                         </div>
                         <div class="form-group flex-end">
-                            <button class="btn btn-primary" id="btn-run-preprocess">Run Preprocessing & Standardize</button>
+                            <button class="btn btn-primary" id="btn-run-preprocess">Run Preprocessing &
+                                Standardize</button>
                         </div>
                     </div>
 
@@ -147,7 +157,8 @@
                         <div class="image-grid" id="prep-preview-grid"></div>
 
                         <div class="actions-right">
-                            <button class="btn btn-success" id="btn-goto-step3">Proceed to Model Generation &rarr;</button>
+                            <button class="btn btn-success" id="btn-goto-step3">Proceed to Model Generation
+                                &rarr;</button>
                         </div>
                     </div>
                 </div>
@@ -157,7 +168,8 @@
             <section id="step-3" class="step-content">
                 <div class="card glass">
                     <h2>Step 3: Synthetic Data Generation Models</h2>
-                    <p class="desc">Train and sample synthetic images across 3 distinct deep generative architectures.</p>
+                    <p class="desc">Train and sample synthetic images across 3 distinct deep generative architectures.
+                    </p>
 
                     <div class="models-grid">
                         <!-- Model 1: GAN -->
@@ -166,8 +178,10 @@
                             <h3>GAN (DCGAN / WGAN)</h3>
                             <p>Deep Convolutional Adversarial Network using min-max adversarial loss.</p>
                             <div class="model-controls">
-                                <label>Epochs: <input type="number" id="epochs-gan" value="10" min="1" max="100" class="input-num"></label>
-                                <label>Samples: <input type="number" id="samples-gan" value="16" min="4" max="100" class="input-num"></label>
+                                <label>Epochs: <input type="number" id="epochs-gan" value="100" min="1" max="100"
+                                        class="input-num"></label>
+                                <label>Samples: <input type="number" id="samples-gan" value="16" min="4" max="100"
+                                        class="input-num"></label>
                             </div>
                             <button class="btn btn-outline btn-block" id="btn-train-gan">Start GAN Pipeline</button>
                             <div class="progress-bar-container hidden" id="prog-wrap-gan">
@@ -186,10 +200,13 @@
                             <h3>Diffusion (DDPM)</h3>
                             <p>Denoising Diffusion Probabilistic Model with Residual U-Net noise predictor.</p>
                             <div class="model-controls">
-                                <label>Epochs: <input type="number" id="epochs-diffusion" value="10" min="1" max="100" class="input-num"></label>
-                                <label>Samples: <input type="number" id="samples-diffusion" value="16" min="4" max="100" class="input-num"></label>
+                                <label>Epochs: <input type="number" id="epochs-diffusion" value="30" min="1" max="100"
+                                        class="input-num"></label>
+                                <label>Samples: <input type="number" id="samples-diffusion" value="16" min="4" max="100"
+                                        class="input-num"></label>
                             </div>
-                            <button class="btn btn-outline btn-block" id="btn-train-diffusion">Start Diffusion Pipeline</button>
+                            <button class="btn btn-outline btn-block" id="btn-train-diffusion">Start Diffusion
+                                Pipeline</button>
                             <div class="progress-bar-container hidden" id="prog-wrap-diffusion">
                                 <div class="progress-bar" id="prog-bar-diffusion"></div>
                                 <span class="progress-text" id="prog-text-diffusion">0%</span>
@@ -206,10 +223,13 @@
                             <h3>VAE / GAN Hybrid</h3>
                             <p>Variational Autoencoder with Discriminator feature-matching reconstruction loss.</p>
                             <div class="model-controls">
-                                <label>Epochs: <input type="number" id="epochs-vae_gan" value="10" min="1" max="100" class="input-num"></label>
-                                <label>Samples: <input type="number" id="samples-vae_gan" value="16" min="4" max="100" class="input-num"></label>
+                                <label>Epochs: <input type="number" id="epochs-vae_gan" value="30" min="1" max="100"
+                                        class="input-num"></label>
+                                <label>Samples: <input type="number" id="samples-vae_gan" value="16" min="4" max="100"
+                                        class="input-num"></label>
                             </div>
-                            <button class="btn btn-outline btn-block" id="btn-train-vae_gan">Start VAE/GAN Pipeline</button>
+                            <button class="btn btn-outline btn-block" id="btn-train-vae_gan">Start VAE/GAN
+                                Pipeline</button>
                             <div class="progress-bar-container hidden" id="prog-wrap-vae_gan">
                                 <div class="progress-bar" id="prog-bar-vae_gan"></div>
                                 <span class="progress-text" id="prog-text-vae_gan">0%</span>
@@ -231,10 +251,12 @@
             <section id="step-4" class="step-content">
                 <div class="card glass">
                     <h2>Step 4: Automated Evaluation Engine</h2>
-                    <p class="desc">Computes multi-dimensional metric suites evaluating Image Quality (FID/SSIM), Utility Score (TSTR), and Privacy Protection (NNDR).</p>
+                    <p class="desc">Computes multi-dimensional metric suites evaluating Image Quality (FID/SSIM),
+                        Utility Score (TSTR), and Privacy Protection (NNDR).</p>
 
                     <div class="form-row">
-                        <button class="btn btn-primary" id="btn-run-all-eval">Run Multi-Metric Evaluation Across All Models</button>
+                        <button class="btn btn-primary" id="btn-run-all-eval">Run Multi-Metric Evaluation Across All
+                            Models</button>
                     </div>
 
                     <div id="eval-dashboard" class="eval-grid hidden">
@@ -242,7 +264,8 @@
                     </div>
 
                     <div class="actions-right margin-top">
-                        <button class="btn btn-success" id="btn-goto-step5">Proceed to Model Comparison & Recommendation &rarr;</button>
+                        <button class="btn btn-success" id="btn-goto-step5">Proceed to Model Comparison & Recommendation
+                            &rarr;</button>
                     </div>
                 </div>
             </section>
@@ -251,10 +274,12 @@
             <section id="step-5" class="step-content">
                 <div class="card glass">
                     <h2>Step 5: Model Comparison & Recommended Winner</h2>
-                    <p class="desc">Multi-criteria decision engine aggregates Quality (40%), Utility (40%), and Privacy (20%) scores to declare the winner.</p>
+                    <p class="desc">Multi-criteria decision engine aggregates Quality (40%), Utility (40%), and Privacy
+                        (20%) scores to declare the winner.</p>
 
                     <div class="form-row">
-                        <button class="btn btn-primary" id="btn-trigger-comparison">Calculate Model Rankings & Recommendation</button>
+                        <button class="btn btn-primary" id="btn-trigger-comparison">Calculate Model Rankings &
+                            Recommendation</button>
                     </div>
 
                     <div id="comparison-results-card" class="comparison-card hidden">
@@ -308,9 +333,11 @@
                         <div class="export-box">
                             <div>
                                 <h3>Export Recommended Synthetic Dataset</h3>
-                                <p>Download ZIP package containing high-quality synthetic images, PyTorch model weights, and JSON evaluation report.</p>
+                                <p>Download ZIP package containing high-quality synthetic images, PyTorch model weights,
+                                    and JSON evaluation report.</p>
                             </div>
-                            <button class="btn btn-success btn-lg" id="btn-download-zip">📦 Download Synthetic Dataset (.ZIP)</button>
+                            <button class="btn btn-success btn-lg" id="btn-download-zip">📦 Download Synthetic Dataset
+                                (.ZIP)</button>
                         </div>
                     </div>
                 </div>
@@ -321,4 +348,5 @@
 
     <script src="js/app.js"></script>
 </body>
+
 </html>

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image
 import torchvision.transforms as transforms
 from typing import List, Callable, Optional
 from pathlib import Path
@@ -29,62 +29,28 @@ class VAEEncoder(nn.Module):
     def __init__(self, latent_dim: int = 128, image_size: int = 64, nc: int = 3):
         super().__init__()
         ndf = 32
-        if image_size == 128:
-            self.conv = nn.Sequential(
-                nn.Conv2d(nc, ndf, 4, 2, 1), # 128 -> 64
-                nn.BatchNorm2d(ndf),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf, ndf * 2, 4, 2, 1), # 64 -> 32
-                nn.BatchNorm2d(ndf * 2),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1), # 32 -> 16
-                nn.BatchNorm2d(ndf * 4),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1), # 16 -> 8
-                nn.BatchNorm2d(ndf * 8),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf * 8, ndf * 8, 4, 2, 1), # 8 -> 4
-                nn.BatchNorm2d(ndf * 8),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Flatten()
-            )
-            ndf = ndf * 2
-        elif image_size == 32:
-            self.conv = nn.Sequential(
-                nn.Conv2d(nc, ndf, 4, 2, 1),
-                nn.BatchNorm2d(ndf),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf, ndf * 2, 4, 2, 1),
-                nn.BatchNorm2d(ndf * 2),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1),
-                nn.BatchNorm2d(ndf * 4),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Flatten()
-            )
-        else: # 64x64
-            self.conv = nn.Sequential(
-                nn.Conv2d(nc, ndf, 4, 2, 1), # 64 -> 32
-                nn.BatchNorm2d(ndf),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf, ndf * 2, 4, 2, 1), # 32 -> 16
-                nn.BatchNorm2d(ndf * 2),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1), # 16 -> 8
-                nn.BatchNorm2d(ndf * 4),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1), # 8 -> 4
-                nn.BatchNorm2d(ndf * 8),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Flatten()
-            )
-            ndf = ndf * 2
-            
-        self.fc_mu = nn.Linear(ndf * 4 * 4 * 4, latent_dim)
-        self.fc_logvar = nn.Linear(ndf * 4 * 4 * 4, latent_dim)
+        self.conv = nn.Sequential(
+            nn.Conv2d(nc, ndf, 4, 2, 1), # 64 -> 32
+            nn.BatchNorm2d(ndf),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(ndf, ndf * 2, 4, 2, 1), # 32 -> 16
+            nn.BatchNorm2d(ndf * 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1), # 16 -> 8
+            nn.BatchNorm2d(ndf * 4),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1), # 8 -> 4
+            nn.BatchNorm2d(ndf * 8),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
+        self.pool = nn.AdaptiveAvgPool2d((4, 4))
+        self.fc_mu = nn.Linear(ndf * 8 * 4 * 4, latent_dim)
+        self.fc_logvar = nn.Linear(ndf * 8 * 4 * 4, latent_dim)
 
     def forward(self, x):
         h = self.conv(x)
+        h = self.pool(h)
+        h = torch.flatten(h, 1)
         mu = self.fc_mu(h)
         logvar = self.fc_logvar(h)
         return mu, logvar
@@ -92,132 +58,57 @@ class VAEEncoder(nn.Module):
 class VAEDecoder(nn.Module):
     def __init__(self, latent_dim: int = 128, image_size: int = 64, nc: int = 3):
         super().__init__()
-        ngf = 32
         self.image_size = image_size
-        
-        if image_size == 128:
-            self.fc = nn.Linear(latent_dim, ngf * 16 * 4 * 4)
-            self.deconv = nn.Sequential(
-                nn.BatchNorm2d(ngf * 16),
-                nn.ReLU(True),
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False), # 4 -> 8
-                nn.Conv2d(ngf * 16, ngf * 8, 3, padding=1),
-                nn.BatchNorm2d(ngf * 8),
-                nn.ReLU(True),
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False), # 8 -> 16
-                nn.Conv2d(ngf * 8, ngf * 4, 3, padding=1),
-                nn.BatchNorm2d(ngf * 4),
-                nn.ReLU(True),
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False), # 16 -> 32
-                nn.Conv2d(ngf * 4, ngf * 2, 3, padding=1),
-                nn.BatchNorm2d(ngf * 2),
-                nn.ReLU(True),
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False), # 32 -> 64
-                nn.Conv2d(ngf * 2, ngf, 3, padding=1),
-                nn.BatchNorm2d(ngf),
-                nn.ReLU(True),
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False), # 64 -> 128
-                nn.Conv2d(ngf, nc, 3, padding=1),
-                nn.Tanh()
-            )
-        elif image_size == 32:
-            self.fc = nn.Linear(latent_dim, ngf * 4 * 4 * 4)
-            self.deconv = nn.Sequential(
-                nn.BatchNorm2d(ngf * 4),
-                nn.ReLU(True),
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
-                nn.Conv2d(ngf * 4, ngf * 2, 3, padding=1),
-                nn.BatchNorm2d(ngf * 2),
-                nn.ReLU(True),
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
-                nn.Conv2d(ngf * 2, ngf, 3, padding=1),
-                nn.BatchNorm2d(ngf),
-                nn.ReLU(True),
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
-                nn.Conv2d(ngf, nc, 3, padding=1),
-                nn.Tanh()
-            )
-        else: # 64x64
-            self.fc = nn.Linear(latent_dim, ngf * 8 * 4 * 4)
-            self.deconv = nn.Sequential(
-                nn.BatchNorm2d(ngf * 8),
-                nn.ReLU(True),
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False), # 4 -> 8
-                nn.Conv2d(ngf * 8, ngf * 4, 3, padding=1),
-                nn.BatchNorm2d(ngf * 4),
-                nn.ReLU(True),
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False), # 8 -> 16
-                nn.Conv2d(ngf * 4, ngf * 2, 3, padding=1),
-                nn.BatchNorm2d(ngf * 2),
-                nn.ReLU(True),
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False), # 16 -> 32
-                nn.Conv2d(ngf * 2, ngf, 3, padding=1),
-                nn.BatchNorm2d(ngf),
-                nn.ReLU(True),
-                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False), # 32 -> 64
-                nn.Conv2d(ngf, nc, 3, padding=1),
-                nn.Tanh()
-            )
+        ngf = 32
+        self.fc = nn.Linear(latent_dim, ngf * 8 * 4 * 4)
+        self.deconv = nn.Sequential(
+            nn.BatchNorm2d(ngf * 8),
+            nn.ReLU(True),
+            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.Conv2d(ngf * 8, ngf * 4, 3, 1, 1),
+            nn.BatchNorm2d(ngf * 4),
+            nn.ReLU(True),
+            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.Conv2d(ngf * 4, ngf * 2, 3, 1, 1),
+            nn.BatchNorm2d(ngf * 2),
+            nn.ReLU(True),
+            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.Conv2d(ngf * 2, ngf, 3, 1, 1),
+            nn.BatchNorm2d(ngf),
+            nn.ReLU(True),
+            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.Conv2d(ngf, nc, 3, 1, 1),
+            nn.Tanh()
+        )
 
     def forward(self, z):
-        if self.image_size == 128:
-            h = self.fc(z).view(-1, 32 * 16, 4, 4)
-        elif self.image_size == 32:
-            h = self.fc(z).view(-1, 32 * 4, 4, 4)
-        else:
-            h = self.fc(z).view(-1, 64 * 4, 4, 4)
-        return self.deconv(h)
+        h = self.fc(z).view(-1, 32 * 8, 4, 4)
+        out = self.deconv(h)
+        if out.shape[-1] != self.image_size or out.shape[-2] != self.image_size:
+            out = F.interpolate(out, size=(self.image_size, self.image_size), mode='bilinear', align_corners=False)
+        return out
 
 class VAEDiscriminator(nn.Module):
     def __init__(self, image_size: int = 64, nc: int = 3):
         super().__init__()
         ndf = 32
-        if image_size == 128:
-            self.features = nn.Sequential(
-                nn.Conv2d(nc, ndf, 4, 2, 1),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf, ndf * 2, 4, 2, 1),
-                nn.BatchNorm2d(ndf * 2),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1),
-                nn.BatchNorm2d(ndf * 4),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1),
-                nn.BatchNorm2d(ndf * 8),
-                nn.LeakyReLU(0.2, inplace=True)
-            )
-            ndf = ndf * 2
-        elif image_size == 32:
-            self.features = nn.Sequential(
-                nn.Conv2d(nc, ndf, 4, 2, 1),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf, ndf * 2, 4, 2, 1),
-                nn.BatchNorm2d(ndf * 2),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1),
-                nn.BatchNorm2d(ndf * 4),
-                nn.LeakyReLU(0.2, inplace=True)
-            )
-        else: # 64x64
-            self.features = nn.Sequential(
-                nn.Conv2d(nc, ndf, 4, 2, 1),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf, ndf * 2, 4, 2, 1),
-                nn.BatchNorm2d(ndf * 2),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1),
-                nn.BatchNorm2d(ndf * 4),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1),
-                nn.BatchNorm2d(ndf * 8),
-                nn.LeakyReLU(0.2, inplace=True)
-            )
-            ndf = ndf * 2
-
+        self.features = nn.Sequential(
+            nn.Conv2d(nc, ndf, 4, 2, 1),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(ndf, ndf * 2, 4, 2, 1),
+            nn.BatchNorm2d(ndf * 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1),
+            nn.BatchNorm2d(ndf * 4),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1),
+            nn.BatchNorm2d(ndf * 8),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
         self.classifier = nn.Sequential(
             nn.AdaptiveAvgPool2d((1, 1)),
             nn.Flatten(),
-            nn.Linear(ndf * 4, 1),
+            nn.Linear(ndf * 8, 1),
             nn.Sigmoid()
         )
 
@@ -227,6 +118,10 @@ class VAEDiscriminator(nn.Module):
         return out, feat
 
 class VAEGANModel(BaseGenerativeModel):
+    """
+    Variational Autoencoder combined with Generative Adversarial Network (VAE-GAN).
+    Learns continuous latent representations while penalizing blur via adversarial discriminator feedback.
+    """
     def __init__(self, image_size: int = 64, latent_dim: int = 128, is_monochrome: bool = True):
         super().__init__(image_size, latent_dim)
         self.is_monochrome = is_monochrome
@@ -243,7 +138,7 @@ class VAEGANModel(BaseGenerativeModel):
     def train_model(
         self,
         dataloader: torch.utils.data.DataLoader,
-        epochs: int = 10,
+        epochs: int = 100,
         lr: float = 0.0003,
         progress_callback: Optional[Callable[[int, int, float, float], None]] = None
     ) -> dict:
@@ -275,7 +170,6 @@ class VAEGANModel(BaseGenerativeModel):
                 if self.is_monochrome:
                     recon_images = recon_images.mean(dim=1, keepdim=True).repeat(1, 3, 1, 1)
 
-                # Anonymized Latent Perturbation (Guarantees synthetic patient privacy)
                 z_p = torch.randn(b_size, self.latent_dim, device=DEVICE)
                 fake_images = self.decoder(z_p)
 
@@ -288,8 +182,8 @@ class VAEGANModel(BaseGenerativeModel):
                 out_recon, _ = self.discriminator(recon_images.detach())
                 out_fake, _ = self.discriminator(fake_images.detach())
 
-                lbl_real = torch.ones((b_size, 1), device=DEVICE)
-                lbl_fake = torch.zeros((b_size, 1), device=DEVICE)
+                lbl_real = torch.full((b_size, 1), 0.9, device=DEVICE)
+                lbl_fake = torch.full((b_size, 1), 0.0, device=DEVICE)
 
                 l_d = bce_loss(out_real, lbl_real) + bce_loss(out_recon, lbl_fake) + bce_loss(out_fake, lbl_fake)
                 l_d.backward()
@@ -307,8 +201,8 @@ class VAEGANModel(BaseGenerativeModel):
                 feat_loss = mse_loss(feat_recon, feat_real.detach())
                 g_loss = bce_loss(out_recon, lbl_real) + bce_loss(out_fake, lbl_real)
 
-                # High-weight on edge loss & L1 loss forces sharp non-blurry contrast
-                l_total_g = (kl_loss * 0.01) + (pixel_recon_loss * 25.0) + (edge_loss * 15.0) + (feat_loss * 2.0) + g_loss
+                # Heavy adversarial & edge weights force sharp discriminator edges over mean blur
+                l_total_g = (kl_loss * 0.0001) + (pixel_recon_loss * 0.1) + (edge_loss * 2.0) + (feat_loss * 2.0) + (g_loss * 5.0)
                 l_total_g.backward()
                 opt_enc_dec.step()
 
@@ -338,12 +232,7 @@ class VAEGANModel(BaseGenerativeModel):
         pil_images = []
         to_pil = transforms.ToPILImage()
         for i in range(num_samples):
-            img = to_pil(fake_tensors[i])
-            # Apply unsharp masking & contrast filter for medical image clarity
-            img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=180, threshold=2))
-            enhancer_c = ImageEnhance.Contrast(img)
-            img = enhancer_c.enhance(1.4)
-            pil_images.append(img)
+            pil_images.append(to_pil(fake_tensors[i]))
 
         return pil_images
 

@@ -7,7 +7,7 @@ router = APIRouter(prefix="/api/models", tags=["Generative Models"])
 class ModelTrainRequest(BaseModel):
     session_id: str
     model_type: str = Field(..., description="Generative model choice: 'gan', 'diffusion', or 'vae_gan'")
-    epochs: int = Field(default=5, ge=1, le=50)
+    epochs: int = Field(default=5, ge=1, le=100)
     num_synthetic_samples: int = Field(default=20, ge=4, le=200)
     image_size: int = Field(default=64)
 

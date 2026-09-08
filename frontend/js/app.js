@@ -65,6 +65,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    function formatErrorMessage(detail, defaultMsg = 'Unknown error') {
+        if (!detail) return defaultMsg;
+        if (typeof detail === 'string') return detail;
+        if (Array.isArray(detail)) {
+            return detail.map(item => {
+                if (typeof item === 'object') {
+                    return item.msg ? (item.loc ? `${item.loc.join('.')}: ${item.msg}` : item.msg) : JSON.stringify(item);
+                }
+                return String(item);
+            }).join('; ');
+        }
+        if (typeof detail === 'object') {
+            return detail.msg || JSON.stringify(detail);
+        }
+        return String(detail);
+    }
+
     async function handleFileUpload(file) {
         uploadStatus.classList.remove('hidden');
         uploadStatus.innerText = 'Uploading and analyzing image dataset...';
@@ -98,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     previewGrid.appendChild(img);
                 });
             } else {
-                uploadStatus.innerText = 'Upload failed: ' + (data.detail || 'Unknown error');
+                uploadStatus.innerText = 'Upload failed: ' + formatErrorMessage(data.detail);
             }
         } catch (err) {
             uploadStatus.innerText = 'Error: ' + err.message;
@@ -202,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     prepGrid.appendChild(img);
                 });
             } else {
-                alert('Preprocessing failed: ' + (data.detail || 'Unknown error'));
+                alert('Preprocessing failed: ' + formatErrorMessage(data.detail));
             }
         } catch (err) {
             alert('Error during preprocessing: ' + err.message);
@@ -245,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await resp.json();
 
             if (!resp.ok) {
-                alert('Training launch failed: ' + data.detail);
+                alert('Training launch failed: ' + formatErrorMessage(data.detail));
                 return;
             }
 
@@ -273,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (st.status === 'failed') {
                     clearInterval(pollInterval);
                     progText.innerText = 'Failed!';
-                    alert('Model error: ' + st.error);
+                    alert('Model error: ' + formatErrorMessage(st.error));
                 }
             }, 1000);
 
@@ -398,7 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('side-real-grid').innerHTML = rawGrid;
 
             } else {
-                alert('Comparison failed: ' + (data.detail || 'Unknown error'));
+                alert('Comparison failed: ' + formatErrorMessage(data.detail));
             }
         } catch (err) {
             alert('Error during comparison: ' + err.message);

@@ -98,13 +98,16 @@ class ImprovedUNet(nn.Module):
         return self.outc(h_up)
 
 class DiffusionModel(BaseGenerativeModel):
+    """
+    Denoising Diffusion Probabilistic Model (DDPM).
+    Learns forward noise schedule and predicts noise via time-conditioned U-Net.
+    """
     def __init__(self, image_size: int = 64, timesteps: int = 100, is_monochrome: bool = True):
         super().__init__(image_size=image_size, latent_dim=timesteps)
         self.timesteps = timesteps
         self.is_monochrome = is_monochrome
         self.unet = ImprovedUNet(in_channels=3, time_emb_dim=64).to(DEVICE)
-        
-        # Define DDPM noise schedule
+
         self.betas = torch.linspace(1e-4, 0.02, timesteps, device=DEVICE)
         self.alphas = 1.0 - self.betas
         self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
@@ -120,7 +123,7 @@ class DiffusionModel(BaseGenerativeModel):
     def train_model(
         self,
         dataloader: torch.utils.data.DataLoader,
-        epochs: int = 10,
+        epochs: int = 100,
         lr: float = 0.0002,
         progress_callback: Optional[Callable[[int, int, float, float], None]] = None
     ) -> dict:
@@ -161,54 +164,53 @@ class DiffusionModel(BaseGenerativeModel):
         return {"loss_g": round(last_loss, 4), "loss_d": 0.0}
 
     @torch.no_grad()
-    def p_sample_step(self, x, t_index):
+    def p_sample_step(self, x, t_index, eta: float = 0.0):
         batch_size = x.shape[0]
         t = torch.full((batch_size,), t_index, device=DEVICE, dtype=torch.long)
-        
+
         predicted_noise = self.unet(x, t)
-        
-        alpha_t = self.alphas[t_index]
-        alpha_cumprod_t = self.alphas_cumprod[t_index]
+
         sqrt_alpha_cumprod_t = self.sqrt_alphas_cumprod[t_index]
         sqrt_one_minus_alpha_cumprod_t = self.sqrt_one_minus_alphas_cumprod[t_index]
-        
-        # Estimate x_0 (original image) from x_t and predicted_noise
-        x_0_pred = (x - sqrt_one_minus_alpha_cumprod_t * predicted_noise) / sqrt_alpha_cumprod_t
-        # Clamp x_0_pred to [-1.0, 1.0] to guarantee bounded reverse diffusion sampling
+
+        # Estimate x_0 from x_t and predicted_noise
+        x_0_pred = (x - sqrt_one_minus_alpha_cumprod_t * predicted_noise) / (sqrt_alpha_cumprod_t + 1e-8)
         x_0_pred = torch.clamp(x_0_pred, -1.0, 1.0)
-        
+
         if t_index == 0:
             return x_0_pred
-            
+
         alpha_cumprod_prev = self.alphas_cumprod_prev[t_index]
-        beta_t = self.betas[t_index]
         
-        posterior_mean = (
-            torch.sqrt(alpha_cumprod_prev) * beta_t / (1.0 - alpha_cumprod_t) * x_0_pred +
-            torch.sqrt(alpha_t) * (1.0 - alpha_cumprod_prev) / (1.0 - alpha_cumprod_t) * x
-        )
+        # DDIM deterministic direction component
+        dir_xt = torch.sqrt(torch.clamp(1.0 - alpha_cumprod_prev - (eta ** 2), min=0.0)) * predicted_noise
         
-        posterior_variance = beta_t * (1.0 - alpha_cumprod_prev) / (1.0 - alpha_cumprod_t)
-        log_posterior_variance = torch.log(torch.clamp(posterior_variance, min=1e-20))
+        # Random noise component (if eta > 0)
+        noise = torch.randn_like(x) if eta > 0 else 0.0
+        sigma_t = eta * torch.sqrt(torch.clamp((1.0 - alpha_cumprod_prev) / (1.0 - self.alphas_cumprod[t_index]) * (1.0 - self.alphas[t_index]), min=0.0))
         
-        noise = torch.randn_like(x)
-        return posterior_mean + torch.exp(0.5 * log_posterior_variance) * noise
+        x_prev = torch.sqrt(alpha_cumprod_prev) * x_0_pred + dir_xt + sigma_t * noise
+        return x_prev
 
     def generate_samples(self, num_samples: int = 16) -> List[Image.Image]:
         self.unet.eval()
-        x = torch.randn((num_samples, 3, self.image_size, self.image_size), device=DEVICE)
-        
-        for t in reversed(range(0, self.timesteps)):
-            x = self.p_sample_step(x, t)
+        with torch.no_grad():
+            x = torch.randn((num_samples, 3, self.image_size, self.image_size), device=DEVICE)
+            for t in reversed(range(0, self.timesteps)):
+                x = self.p_sample_step(x, t)
 
-        if self.is_monochrome:
-            x = x.mean(dim=1, keepdim=True).repeat(1, 3, 1, 1)
+            if self.is_monochrome:
+                x = x.mean(dim=1, keepdim=True).repeat(1, 3, 1, 1)
 
-        x = (x + 1.0) / 2.0
-        x = torch.clamp(x, 0.0, 1.0).cpu()
+            x = (x + 1.0) / 2.0
+            x = torch.clamp(x, 0.0, 1.0).cpu()
 
+        pil_images = []
         to_pil = transforms.ToPILImage()
-        return [to_pil(x[i]) for i in range(num_samples)]
+        for i in range(num_samples):
+            pil_images.append(to_pil(x[i]))
+
+        return pil_images
 
     def save_checkpoint(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -224,4 +226,5 @@ class DiffusionModel(BaseGenerativeModel):
         self.unet.load_state_dict(checkpoint['unet'])
         self.is_monochrome = checkpoint.get('is_monochrome', True)
         self.is_trained = True
+
 

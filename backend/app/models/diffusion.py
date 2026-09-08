@@ -164,7 +164,7 @@ class DiffusionModel(BaseGenerativeModel):
         return {"loss_g": round(last_loss, 4), "loss_d": 0.0}
 
     @torch.no_grad()
-    def p_sample_step(self, x, t_index, eta: float = 0.0):
+    def p_sample_step(self, x, t_index: int, t_prev_index: Optional[int] = None, eta: float = 0.0):
         batch_size = x.shape[0]
         t = torch.full((batch_size,), t_index, device=DEVICE, dtype=torch.long)
 
@@ -177,18 +177,16 @@ class DiffusionModel(BaseGenerativeModel):
         x_0_pred = (x - sqrt_one_minus_alpha_cumprod_t * predicted_noise) / (sqrt_alpha_cumprod_t + 1e-8)
         x_0_pred = torch.clamp(x_0_pred, -1.0, 1.0)
 
-        if t_index == 0:
+        if t_prev_index is None or t_index == 0:
             return x_0_pred
 
-        alpha_cumprod_prev = self.alphas_cumprod_prev[t_index]
+        alpha_cumprod_t = self.alphas_cumprod[t_index]
+        alpha_cumprod_prev = self.alphas_cumprod[t_prev_index] if t_prev_index >= 0 else torch.tensor(1.0, device=DEVICE)
         
-        # DDIM deterministic direction component
-        dir_xt = torch.sqrt(torch.clamp(1.0 - alpha_cumprod_prev - (eta ** 2), min=0.0)) * predicted_noise
+        sigma_t = eta * torch.sqrt(torch.clamp((1.0 - alpha_cumprod_prev) / (1.0 - alpha_cumprod_t + 1e-8) * (1.0 - alpha_cumprod_t / (alpha_cumprod_prev + 1e-8)), min=0.0))
+        dir_xt = torch.sqrt(torch.clamp(1.0 - alpha_cumprod_prev - (sigma_t ** 2), min=0.0)) * predicted_noise
         
-        # Random noise component (if eta > 0)
         noise = torch.randn_like(x) if eta > 0 else 0.0
-        sigma_t = eta * torch.sqrt(torch.clamp((1.0 - alpha_cumprod_prev) / (1.0 - self.alphas_cumprod[t_index]) * (1.0 - self.alphas[t_index]), min=0.0))
-        
         x_prev = torch.sqrt(alpha_cumprod_prev) * x_0_pred + dir_xt + sigma_t * noise
         return x_prev
 
@@ -196,14 +194,23 @@ class DiffusionModel(BaseGenerativeModel):
         self.unet.eval()
         with torch.no_grad():
             x = torch.randn((num_samples, 3, self.image_size, self.image_size), device=DEVICE)
-            for t in reversed(range(0, self.timesteps)):
-                x = self.p_sample_step(x, t)
+            
+            # Fast DDIM strided timesteps (10 steps instead of 100) for instant response (< 1 sec)
+            num_steps = 10
+            step_size = max(1, self.timesteps // num_steps)
+            strided_steps = list(range(0, self.timesteps, step_size))
+            
+            for i in reversed(range(len(strided_steps))):
+                t_curr = strided_steps[i]
+                t_prev = strided_steps[i - 1] if i > 0 else 0
+                x = self.p_sample_step(x, t_curr, t_prev_index=t_prev, eta=0.0)
 
             if self.is_monochrome:
                 x = x.mean(dim=1, keepdim=True).repeat(1, 3, 1, 1)
 
+            # Standard Tanh normalization mapping [-1.0, 1.0] -> [0.0, 1.0] to preserve true black background and tissue contrast
             x = (x + 1.0) / 2.0
-            x = torch.clamp(x, 0.0, 1.0).cpu()
+            x = torch.clamp(x.cpu(), 0.0, 1.0)
 
         pil_images = []
         to_pil = transforms.ToPILImage()

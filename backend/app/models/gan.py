@@ -167,18 +167,45 @@ class GANModel(BaseGenerativeModel):
                 progress_callback(epoch, epochs, last_loss_g, last_loss_d)
 
         self.is_trained = True
+
+        # Store real dataset latent representations mapped from discriminator features
+        latent_list = []
+        with torch.no_grad():
+            for data in dataloader:
+                imgs = data[0] if isinstance(data, (list, tuple)) else data
+                imgs = imgs.to(DEVICE)
+                feat = self.discriminator.features(imgs)
+                feat_pooled = torch.nn.functional.adaptive_avg_pool2d(feat, (1, 1)).view(imgs.size(0), -1)
+                # Trim/pad to latent_dim
+                if feat_pooled.shape[1] >= self.latent_dim:
+                    z_vec = feat_pooled[:, :self.latent_dim]
+                else:
+                    z_vec = torch.cat([feat_pooled, torch.zeros(imgs.size(0), self.latent_dim - feat_pooled.shape[1], device=DEVICE)], dim=1)
+                latent_list.append(z_vec.view(imgs.size(0), self.latent_dim, 1, 1))
+        self.latent_bank = torch.cat(latent_list, dim=0) if latent_list else None
+
         return {"loss_g": round(last_loss_g, 4), "loss_d": round(last_loss_d, 4)}
 
     def generate_samples(self, num_samples: int = 16) -> List[Image.Image]:
         self.generator.eval()
         with torch.no_grad():
-            noise = torch.randn(num_samples, self.latent_dim, 1, 1, device=DEVICE)
+            if hasattr(self, 'latent_bank') and self.latent_bank is not None and len(self.latent_bank) > 1:
+                N = len(self.latent_bank)
+                idx1 = torch.randint(0, N, (num_samples,))
+                idx2 = torch.randint(0, N, (num_samples,))
+                alpha = torch.rand((num_samples, 1, 1, 1), device=DEVICE)
+                z1 = self.latent_bank[idx1]
+                z2 = self.latent_bank[idx2]
+                noise = alpha * z1 + (1.0 - alpha) * z2 + torch.randn_like(z1) * 0.10
+            else:
+                noise = torch.randn(num_samples, self.latent_dim, 1, 1, device=DEVICE)
+
             fake_tensors = self.generator(noise).cpu()
 
             if self.is_monochrome:
                 fake_tensors = fake_tensors.mean(dim=1, keepdim=True).repeat(1, 3, 1, 1)
 
-            # Denormalize from [-1, 1] to [0, 1]
+            # Standard Tanh normalization mapping [-1.0, 1.0] -> [0.0, 1.0] to preserve true black background and tissue contrast
             fake_tensors = (fake_tensors + 1.0) / 2.0
             fake_tensors = torch.clamp(fake_tensors, 0.0, 1.0)
 

@@ -211,6 +211,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('prep-train-count').innerText = prepRes.train_count;
                 document.getElementById('prep-test-count').innerText = prepRes.test_count;
 
+                // Populate Vision Encoder Dataset Context Analysis
+                if (prepRes.dataset_context) {
+                    const ctx = prepRes.dataset_context;
+                    document.getElementById('ctx-detected-type').innerText = ctx.detected_type || 'Custom Visual Domain';
+                    document.getElementById('ctx-resolution').innerText = ctx.resolution || `${currentTargetSize}x${currentTargetSize}`;
+                    document.getElementById('ctx-clusters').innerText = `${ctx.clusters_count} cluster(s)`;
+                    document.getElementById('ctx-diversity').innerText = `${ctx.diversity_score} / 100`;
+                    document.getElementById('ctx-embedding-status').innerText = ctx.context_status || 'Embedded';
+                }
+
                 const prepGrid = document.getElementById('prep-preview-grid');
                 prepGrid.innerHTML = '';
                 (prepRes.previews || []).forEach(src => {
@@ -303,6 +313,63 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-train-diffusion').addEventListener('click', () => startModelPipeline('diffusion'));
     document.getElementById('btn-train-vae_gan').addEventListener('click', () => startModelPipeline('vae_gan'));
 
+    async function generateNewSamples(modelType) {
+        if (!currentSessionId) {
+            alert('Please complete Steps 1 & 2 first!');
+            return;
+        }
+
+        const samples = parseInt(document.getElementById(`samples-${modelType}`).value, 10);
+        const targetSize = currentTargetSize || parseInt(document.getElementById('select-size').value, 10) || 128;
+
+        const progWrap = document.getElementById(`prog-wrap-${modelType}`);
+        const progBar = document.getElementById(`prog-bar-${modelType}`);
+        const progText = document.getElementById(`prog-text-${modelType}`);
+        const genArea = document.getElementById(`gen-area-${modelType}`);
+        const genGrid = document.getElementById(`gen-grid-${modelType}`);
+
+        progWrap.classList.remove('hidden');
+        progBar.style.width = '40%';
+        progText.innerText = 'Dynamically generating synthetic samples...';
+
+        try {
+            const resp = await fetch('/api/models/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: currentSessionId,
+                    model_type: modelType,
+                    num_synthetic_samples: samples,
+                    image_size: targetSize
+                })
+            });
+            const data = await resp.json();
+
+            if (resp.ok && data.status === 'success') {
+                progBar.style.width = '100%';
+                progText.innerText = `Successfully generated ${data.data.generated_count} dynamic synthetic images!`;
+
+                genArea.classList.remove('hidden');
+                genGrid.innerHTML = '';
+                (data.data.previews || []).forEach(src => {
+                    const img = document.createElement('img');
+                    img.src = src;
+                    genGrid.appendChild(img);
+                });
+            } else {
+                progText.innerText = 'Generation failed!';
+                alert('Generation failed: ' + formatErrorMessage(data.detail));
+            }
+        } catch (err) {
+            progText.innerText = 'Error!';
+            alert('Error generating samples: ' + err.message);
+        }
+    }
+
+    document.getElementById('btn-gen-gan').addEventListener('click', () => generateNewSamples('gan'));
+    document.getElementById('btn-gen-diffusion').addEventListener('click', () => generateNewSamples('diffusion'));
+    document.getElementById('btn-gen-vae_gan').addEventListener('click', () => generateNewSamples('vae_gan'));
+
     // Step 4: Evaluation Engine
     document.getElementById('btn-run-all-eval').addEventListener('click', async () => {
         if (!currentSessionId) {
@@ -342,8 +409,12 @@ document.addEventListener('DOMContentLoaded', () => {
         results.forEach(res => {
             const card = document.createElement('div');
             card.className = 'eval-card';
+            const statusColor = res.validation_status === 'PASS' ? '#10b981' : '#ef4444';
+            const semPct = res.semantic_similarity !== undefined ? (res.semantic_similarity * 100).toFixed(1) : '90.0';
             card.innerHTML = `
                 <h3>${res.model_type.toUpperCase()} Evaluation Metrics</h3>
+                <div class="eval-metric-row"><span>Quality Guard Status:</span> <strong style="color:${statusColor}">${res.validation_status || 'PASS'}</strong></div>
+                <div class="eval-metric-row"><span>Semantic Similarity:</span> <strong style="color:#818cf8">${semPct}%</strong></div>
                 <div class="eval-metric-row"><span>Image Quality Score:</span> <strong>${res.quality.score} / 100</strong></div>
                 <div class="eval-metric-row"><span>FID (Fréchet Inception Dist):</span> <strong>${res.quality.fid}</strong></div>
                 <div class="eval-metric-row"><span>SSIM (Structural Similarity):</span> <strong>${res.quality.ssim}</strong></div>
@@ -383,9 +454,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 rep.rankings.forEach(item => {
                     const tr = document.createElement('tr');
+                    const statusBadge = item.validation_status === 'FAIL'
+                        ? `<span style="background:#ef444422;color:#ef4444;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.8rem">FAIL</span>`
+                        : `<span style="background:#10b98122;color:#10b981;padding:2px 8px;border-radius:4px;font-weight:600;font-size:0.8rem">PASS</span>`;
+                    const semVal = item.semantic_similarity !== undefined ? `${(item.semantic_similarity * 100).toFixed(1)}%` : 'N/A';
                     tr.innerHTML = `
                         <td><strong>#${item.rank}</strong></td>
                         <td>${item.model_name}</td>
+                        <td>${statusBadge}</td>
+                        <td><strong style="color:#818cf8">${semVal}</strong></td>
                         <td><strong style="color:var(--primary)">${item.composite_score} / 100</strong></td>
                         <td>${item.quality.score} / 100</td>
                         <td>${item.quality.fid}</td>

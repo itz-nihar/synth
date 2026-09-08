@@ -2,7 +2,8 @@ from pathlib import Path
 from PIL import Image, ImageOps
 import torchvision.transforms as transforms
 from typing import Dict, Any, List
-from backend.app.services.dataset_service import get_session_dir, get_session_images, pil_to_base64, SESSION_CACHE
+from backend.app.services.dataset_analysis_service import analyze_dataset_context
+from backend.app.services.dataset_service import get_session_images, get_session_dir, pil_to_base64, SESSION_CACHE
 
 def run_preprocessing_pipeline(
     session_id: str,
@@ -55,6 +56,9 @@ def run_preprocessing_pipeline(
         except Exception:
             corrupt_count += 1
             
+    # Run automatic dataset vision context analysis
+    context = analyze_dataset_context(session_id, preprocessed_images)
+
     summary = {
         "session_id": session_id,
         "processed_count": len(preprocessed_images),
@@ -62,7 +66,8 @@ def run_preprocessing_pipeline(
         "target_size": target_size,
         "train_count": num_train,
         "test_count": len(preprocessed_images) - num_train,
-        "previews": previews
+        "previews": previews,
+        "dataset_context": context
     }
     
     if session_id in SESSION_CACHE:

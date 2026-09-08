@@ -154,6 +154,35 @@
                             </div>
                         </div>
 
+                        <!-- Dataset Context Card -->
+                        <div id="dataset-context-card" class="glass-inner margin-top-sm" style="padding: 16px; margin-top: 16px; border-left: 4px solid #6366f1;">
+                            <h4 style="margin-top:0; color:#818cf8; display:flex; align-items:center; gap:8px;">
+                                <span>🧠 Vision Encoder Dataset Context Analysis</span>
+                            </h4>
+                            <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:12px;">
+                                <div class="stat-box">
+                                    <span class="stat-val" id="ctx-detected-type" style="font-size:0.9rem; color:#f3f4f6;">-</span>
+                                    <span class="stat-lbl">Detected Visual Domain</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="stat-val" id="ctx-resolution" style="font-size:1.1rem;">-</span>
+                                    <span class="stat-lbl">Native Resolution</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="stat-val" id="ctx-clusters" style="font-size:1.1rem;">-</span>
+                                    <span class="stat-lbl">Visual Clusters</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="stat-val" id="ctx-diversity" style="font-size:1.1rem; color:#10b981;">-</span>
+                                    <span class="stat-lbl">Diversity Score</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="stat-val" id="ctx-embedding-status" style="font-size:0.85rem; color:#6366f1;">Embedded</span>
+                                    <span class="stat-lbl">Vision Vector Status</span>
+                                </div>
+                            </div>
+                        </div>
+
                         <h4>Preprocessed Sample Grid</h4>
                         <div class="image-grid" id="prep-preview-grid"></div>
 
@@ -185,6 +214,7 @@
                                         class="input-num"></label>
                             </div>
                             <button class="btn btn-outline btn-block" id="btn-train-gan">Start GAN Pipeline</button>
+                            <button class="btn btn-secondary btn-block margin-top-sm" id="btn-gen-gan" style="margin-top:6px; background:#4f46e5; color:white;">⚡ Dynamically Generate New Batch</button>
                             <div class="progress-bar-container hidden" id="prog-wrap-gan">
                                 <div class="progress-bar" id="prog-bar-gan"></div>
                                 <span class="progress-text" id="prog-text-gan">0%</span>
@@ -208,6 +238,7 @@
                             </div>
                             <button class="btn btn-outline btn-block" id="btn-train-diffusion">Start Diffusion
                                 Pipeline</button>
+                            <button class="btn btn-secondary btn-block margin-top-sm" id="btn-gen-diffusion" style="margin-top:6px; background:#4f46e5; color:white;">⚡ Dynamically Generate New Batch</button>
                             <div class="progress-bar-container hidden" id="prog-wrap-diffusion">
                                 <div class="progress-bar" id="prog-bar-diffusion"></div>
                                 <span class="progress-text" id="prog-text-diffusion">0%</span>
@@ -231,6 +262,7 @@
                             </div>
                             <button class="btn btn-outline btn-block" id="btn-train-vae_gan">Start VAE/GAN
                                 Pipeline</button>
+                            <button class="btn btn-secondary btn-block margin-top-sm" id="btn-gen-vae_gan" style="margin-top:6px; background:#4f46e5; color:white;">⚡ Dynamically Generate New Batch</button>
                             <div class="progress-bar-container hidden" id="prog-wrap-vae_gan">
                                 <div class="progress-bar" id="prog-bar-vae_gan"></div>
                                 <span class="progress-text" id="prog-text-vae_gan">0%</span>
@@ -302,6 +334,8 @@
                                     <tr>
                                         <th>Rank</th>
                                         <th>Generative Model</th>
+                                        <th>Quality Guard</th>
+                                        <th>Semantic Sim</th>
                                         <th>Composite Score</th>
                                         <th>Image Quality</th>
                                         <th>FID Score</th>

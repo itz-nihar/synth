@@ -216,16 +216,41 @@ class VAEGANModel(BaseGenerativeModel):
                 progress_callback(epoch, epochs, last_loss_g, last_loss_d)
 
         self.is_trained = True
+
+        # Store deep latent feature vectors from real images for seamless latent synthesis
+        latent_list = []
+        with torch.no_grad():
+            for data in dataloader:
+                imgs = data[0] if isinstance(data, (list, tuple)) else data
+                imgs = imgs.to(DEVICE)
+                mu, _ = self.encoder(imgs)
+                latent_list.append(mu)
+        self.latent_bank = torch.cat(latent_list, dim=0) if latent_list else None
+
         return {"loss_g": round(last_loss_g, 4), "loss_d": round(last_loss_d, 4)}
 
     def generate_samples(self, num_samples: int = 16) -> List[Image.Image]:
         self.decoder.eval()
         with torch.no_grad():
-            z = torch.randn(num_samples, self.latent_dim, device=DEVICE)
+            if hasattr(self, 'latent_bank') and self.latent_bank is not None and len(self.latent_bank) > 1:
+                N = len(self.latent_bank)
+                idx1 = torch.randint(0, N, (num_samples,))
+                idx2 = torch.randint(0, N, (num_samples,))
+                alpha = torch.rand((num_samples, 1), device=DEVICE)
+                
+                z1 = self.latent_bank[idx1]
+                z2 = self.latent_bank[idx2]
+                
+                # Deep latent vector space interpolation + Gaussian perturbation BEFORE decoding
+                z = alpha * z1 + (1.0 - alpha) * z2 + torch.randn_like(z1) * 0.15
+            else:
+                z = torch.randn(num_samples, self.latent_dim, device=DEVICE)
+
             fake_tensors = self.decoder(z).cpu()
             if self.is_monochrome:
                 fake_tensors = fake_tensors.mean(dim=1, keepdim=True).repeat(1, 3, 1, 1)
 
+            # Standard Tanh normalization mapping [-1.0, 1.0] -> [0.0, 1.0] to preserve true black background and tissue contrast
             fake_tensors = (fake_tensors + 1.0) / 2.0
             fake_tensors = torch.clamp(fake_tensors, 0.0, 1.0)
 
@@ -244,7 +269,8 @@ class VAEGANModel(BaseGenerativeModel):
             'discriminator': self.discriminator.state_dict(),
             'image_size': self.image_size,
             'latent_dim': self.latent_dim,
-            'is_monochrome': self.is_monochrome
+            'is_monochrome': self.is_monochrome,
+            'latent_bank': getattr(self, 'latent_bank', None)
         }, path)
 
     def load_checkpoint(self, path: Path):
@@ -253,4 +279,5 @@ class VAEGANModel(BaseGenerativeModel):
         self.decoder.load_state_dict(checkpoint['decoder'])
         self.discriminator.load_state_dict(checkpoint['discriminator'])
         self.is_monochrome = checkpoint.get('is_monochrome', True)
+        self.latent_bank = checkpoint.get('latent_bank', None)
         self.is_trained = True

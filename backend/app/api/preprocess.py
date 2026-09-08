@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from backend.app.services.preprocess_service import run_preprocessing_pipeline, SESSION_CACHE
+from backend.app.services.preprocess_service import run_preprocessing_pipeline
+from backend.app.services.dataset_service import SESSION_CACHE
 
 router = APIRouter(prefix="/api/preprocess", tags=["Preprocessing & Validation"])
 
@@ -25,8 +26,17 @@ async def run_preprocess(req: PreprocessRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+from backend.app.services.dataset_analysis_service import get_dataset_context
+
 @router.get("/status/{session_id}")
 async def get_preprocess_status(session_id: str):
     if session_id in SESSION_CACHE and "preprocessing" in SESSION_CACHE[session_id]:
         return {"status": "success", "data": SESSION_CACHE[session_id]["preprocessing"]}
     raise HTTPException(status_code=404, detail="Preprocessing status not found for session")
+
+@router.get("/context/{session_id}")
+async def get_context(session_id: str):
+    context = get_dataset_context(session_id)
+    if context:
+        return {"status": "success", "data": context}
+    raise HTTPException(status_code=404, detail="Dataset context not found for session")

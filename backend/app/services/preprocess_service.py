@@ -28,7 +28,7 @@ def run_preprocessing_pipeline(
     corrupt_count = 0
     
     transform = transforms.Compose([
-        transforms.Resize((target_size, target_size)),
+        transforms.Resize((target_size, target_size), interpolation=transforms.InterpolationMode.LANCZOS),
         transforms.Lambda(lambda img: img.convert('RGB'))
     ])
     

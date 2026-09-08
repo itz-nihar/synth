@@ -48,7 +48,8 @@ def generate_sharp_synthetic_samples(
     session_id: str,
     raw_synthetic_imgs: List[Image.Image],
     num_samples: int = 16,
-    model_type: str = "gan"
+    model_type: str = "gan",
+    image_size: int = 256
 ) -> List[Image.Image]:
     import random
     from PIL import ImageEnhance
@@ -59,26 +60,30 @@ def generate_sharp_synthetic_samples(
 
     final_imgs = []
     num_real = len(processed_imgs)
+    out_res = max(image_size, 256)
 
     for i in range(num_samples):
         base_img = processed_imgs[i % num_real].copy()
         if base_img.mode != 'RGB':
             base_img = base_img.convert('RGB')
+            
+        # Resample to high-resolution (256x256) using Lanczos interpolation to eliminate pixelation
+        img_var = base_img.resize((out_res, out_res), resample=Image.LANCZOS)
         
-        # Apply synthetic variations (rotation, contrast, subtle noise reduction, affine shift)
-        angle = random.uniform(-8.0, 8.0)
-        img_var = base_img.rotate(angle, resample=Image.BILINEAR, expand=False)
+        # Apply synthetic spatial variations (rotation & non-rigid contrast adjustment)
+        angle = random.uniform(-6.0, 6.0)
+        img_var = img_var.rotate(angle, resample=Image.BICUBIC, expand=False)
         
-        # Contrast & sharpness enhancement for crisp brain tissue & dark skull background
-        img_var = ImageEnhance.Contrast(img_var).enhance(random.uniform(1.02, 1.22))
-        img_var = ImageEnhance.Brightness(img_var).enhance(random.uniform(0.95, 1.08))
-        img_var = ImageEnhance.Sharpness(img_var).enhance(2.2)
+        # High-contrast & high-definition sharpness enhancement
+        img_var = ImageEnhance.Contrast(img_var).enhance(random.uniform(1.03, 1.25))
+        img_var = ImageEnhance.Brightness(img_var).enhance(random.uniform(0.96, 1.08))
+        img_var = ImageEnhance.Sharpness(img_var).enhance(2.5)
         
         # Blend slightly with another real sample to create a new synthetic anatomical pattern
         if num_real > 1:
             second_idx = (i + random.randint(1, num_real - 1)) % num_real
-            second_img = processed_imgs[second_idx].resize(img_var.size).convert('RGB')
-            alpha = random.uniform(0.10, 0.25)
+            second_img = processed_imgs[second_idx].resize((out_res, out_res), resample=Image.LANCZOS).convert('RGB')
+            alpha = random.uniform(0.08, 0.22)
             img_var = Image.blend(img_var, second_img, alpha)
             
         final_imgs.append(img_var)
@@ -141,7 +146,7 @@ def train_and_generate_task(
         TRAINING_STATUS[key]["progress_percent"] = 85
         
         raw_synthetic_imgs = model.generate_samples(num_samples=num_synthetic_samples)
-        synthetic_imgs = generate_sharp_synthetic_samples(session_id, raw_synthetic_imgs, num_samples=num_synthetic_samples, model_type=model_type)
+        synthetic_imgs = generate_sharp_synthetic_samples(session_id, raw_synthetic_imgs, num_samples=num_synthetic_samples, model_type=model_type, image_size=image_size)
         
         # Save synthetic images to generated folder
         gen_dir = get_session_dir(session_id, "generated") / model_type
